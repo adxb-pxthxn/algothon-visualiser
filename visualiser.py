@@ -10,7 +10,6 @@ def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r") as f:
             data = json.load(f)
-            # Safely convert keys to integers if needed
             asset_names_raw = data.get("asset_names", {})
             asset_names = {int(k): v for k, v in asset_names_raw.items()}
             return {
@@ -29,14 +28,11 @@ def load_data(filename):
 
 
 def main():
-    st.title("SIG Algothon 2025")
-
     df = load_data("prices.txt")
     num_assets = df.shape[1]
 
     if "asset_names" not in st.session_state or "groups" not in st.session_state:
         saved = load_state()
-        # Fallback: auto-fill missing indices
         st.session_state.asset_names = saved.get("asset_names", {})
         for i in range(num_assets):
             if i not in st.session_state.asset_names:
@@ -52,12 +48,12 @@ def main():
         st.session_state.asset_names = saved.get("asset_names", {i: f"Asset {i + 1}" for i in range(num_assets)})
         st.session_state.groups = saved.get("groups", {})
     if "groups" not in st.session_state:
-        st.session_state.groups = {}  # e.g., {'MyTechGroup': [0, 3, 5]}
+        st.session_state.groups = {}
     if "graph_count" not in st.session_state:
         st.session_state.graph_count = 1
 
     # ------------------------------
-    # 📝 Asset Renaming (Slider + Input)
+    # Asset Renaming
     # ------------------------------
     st.sidebar.header("📝 Rename Assets")
 
@@ -74,15 +70,14 @@ def main():
         key=f"rename_input_{selected_rename_index}"
     )
 
-    # Update the name in session state
     st.session_state.asset_names[selected_rename_index] = new_name.strip() or f"Asset {selected_rename_index + 1}"
     save_state(st.session_state.asset_names, st.session_state.groups)
 
     # ------------------------------
-    # 📦 Group Creation
+    # Group Creation
     # ------------------------------
     st.sidebar.markdown("---")
-    st.sidebar.header("📦 Manage Groups")
+    st.sidebar.header("Manage Groups")
 
     new_group_name = st.sidebar.text_input("New group name")
 
@@ -120,12 +115,12 @@ def main():
                 if name in selected_names
             ]
 
-            # ➖ Remove graph button
+            # Remove graph button
             if st.button(f"❌ Remove {graph_label}", key=f"remove_graph_btn_{graph_id}"):
                 st.session_state.graph_ids.remove(graph_id)
                 st.rerun()
 
-            # 👁️ Toggle group controls visibility
+            # Toggle group controls visibility
             if f"show_groups_{graph_id}" not in st.session_state:
                 st.session_state[f"show_groups_{graph_id}"] = True
 
@@ -134,7 +129,7 @@ def main():
             st.session_state[f"show_groups_{graph_id}"] = toggle
 
             if toggle:
-                # 🔹 New group creation UI
+                # New group creation UI
                 st.markdown("### ➕ Create New Group from Selection")
                 new_group_name = st.text_input(
                     f"New group name ({graph_label})",
@@ -151,7 +146,7 @@ def main():
                     else:
                         st.warning("Please enter a group name.")
 
-                # 🔸 Add to existing group
+                # Add to existing group
                 st.markdown("### 📂 Add Selected to Existing Group")
                 group_options = list(st.session_state.groups.keys())
                 if group_options:
@@ -169,7 +164,7 @@ def main():
                             save_state(st.session_state.asset_names, st.session_state.groups)
                             st.success(f"Assets added to group '{group_to_add}'.")
 
-            # 📊 Plotting
+            # Plotting
             if selected_indices:
                 fig = go.Figure()
                 for i in selected_indices:
