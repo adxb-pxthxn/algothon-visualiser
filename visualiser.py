@@ -1,23 +1,56 @@
 import pandas as pd
 import streamlit as st
 import plotly.graph_objs as go
+import json
+import os
 
+STATE_FILE = "state.json"
+
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            data = json.load(f)
+            # Safely convert keys to integers if needed
+            asset_names_raw = data.get("asset_names", {})
+            asset_names = {int(k): v for k, v in asset_names_raw.items()}
+            return {
+                "asset_names": asset_names,
+                "groups": data.get("groups", {})
+            }
+    return {"asset_names": {}, "groups": {}}
+
+
+def save_state(asset_names, groups):
+    with open(STATE_FILE, "w") as f:
+        json.dump({"asset_names": asset_names, "groups": groups}, f, indent=4)
 
 def load_data(filename):
     return pd.read_csv(filename, sep="\s+", header=None)
 
 
 def main():
-    st.title("SIG Algothon 2025 – Multi-Graph Visualizer with Groups")
+    st.title("SIG Algothon 2025")
 
     df = load_data("prices.txt")
     num_assets = df.shape[1]
 
+    if "asset_names" not in st.session_state or "groups" not in st.session_state:
+        saved = load_state()
+        # Fallback: auto-fill missing indices
+        st.session_state.asset_names = saved.get("asset_names", {})
+        for i in range(num_assets):
+            if i not in st.session_state.asset_names:
+                st.session_state.asset_names[i] = f"Asset {i + 1}"
+
+        st.session_state.groups = saved.get("groups", {})
+
     # ------------------------
     # INIT STATE
     # ------------------------
-    if "asset_names" not in st.session_state:
-        st.session_state.asset_names = {i: f"Asset {i + 1}" for i in range(num_assets)}
+    if "asset_names" not in st.session_state or "groups" not in st.session_state:
+        saved = load_state()
+        st.session_state.asset_names = saved.get("asset_names", {i: f"Asset {i + 1}" for i in range(num_assets)})
+        st.session_state.groups = saved.get("groups", {})
     if "groups" not in st.session_state:
         st.session_state.groups = {}  # e.g., {'MyTechGroup': [0, 3, 5]}
     if "graph_count" not in st.session_state:
@@ -43,6 +76,7 @@ def main():
 
     # Update the name in session state
     st.session_state.asset_names[selected_rename_index] = new_name.strip() or f"Asset {selected_rename_index + 1}"
+    save_state(st.session_state.asset_names, st.session_state.groups)
 
     # ------------------------------
     # 📦 Group Creation
@@ -55,6 +89,7 @@ def main():
     if st.sidebar.button("➕ Create Group"):
         if new_group_name and new_group_name not in st.session_state.groups:
             st.session_state.groups[new_group_name] = []
+            save_state(st.session_state.asset_names, st.session_state.groups)
             st.sidebar.success(f"Group '{new_group_name}' created.")
         else:
             st.sidebar.warning("Enter a unique group name.")
@@ -111,6 +146,7 @@ def main():
                             st.warning(f"Group '{new_group_name}' already exists.")
                         else:
                             st.session_state.groups[new_group_name] = selected_indices.copy()
+                            save_state(st.session_state.asset_names, st.session_state.groups)
                             st.success(f"Group '{new_group_name}' created.")
                     else:
                         st.warning("Please enter a group name.")
@@ -130,6 +166,7 @@ def main():
                             for idx in selected_indices:
                                 if idx not in st.session_state.groups[group_to_add]:
                                     st.session_state.groups[group_to_add].append(idx)
+                            save_state(st.session_state.asset_names, st.session_state.groups)
                             st.success(f"Assets added to group '{group_to_add}'.")
 
             # 📊 Plotting
