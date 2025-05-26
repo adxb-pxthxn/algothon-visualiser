@@ -28,18 +28,35 @@ def load_data(filename):
 
 
 def main():
+    st.set_page_config(page_title="Asset Visualiser", layout="wide")
+
     df = load_data("prices.txt")
     num_assets = df.shape[1]
 
-    if "asset_names" not in st.session_state or "groups" not in st.session_state:
-        saved = load_state()
-        st.session_state.asset_names = saved.get("asset_names", {})
-        for i in range(num_assets):
-            if i not in st.session_state.asset_names:
-                st.session_state.asset_names[i] = f"Asset {i + 1}"
+    # Example summary chart (based on first 2 assets)
+    my_chart = go.Figure()
+    if num_assets >= 2:
+        my_chart.add_trace(go.Scatter(y=df[0], mode="lines", name="Asset 1"))
+        my_chart.add_trace(go.Scatter(y=df[1], mode="lines", name="Asset 2"))
 
-        st.session_state.groups = saved.get("groups", {})
-
+        my_chart.update_layout(
+            title="Sample Chart",
+            template='plotly_dark',
+            plot_bgcolor='#111111',
+            paper_bgcolor='#111111',
+            font=dict(color='white', size=12),
+            xaxis=dict(
+                showgrid=False,
+                zeroline=False
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#333',
+                zeroline=False
+            ),
+            margin=dict(t=30, b=20, l=20, r=20),
+            height=250
+        )
     # ------------------------
     # INIT STATE
     # ------------------------
@@ -55,7 +72,7 @@ def main():
     # ------------------------------
     # Asset Renaming
     # ------------------------------
-    st.sidebar.header("📝 Rename Assets")
+    st.sidebar.header("Rename Assets")
 
     selected_rename_index = st.sidebar.slider(
         "Select Asset to Rename",
@@ -95,7 +112,6 @@ def main():
     if "graph_ids" not in st.session_state:
         st.session_state.graph_ids = [0]
 
-    # Track the next unique graph ID
     if "next_graph_id" not in st.session_state:
         st.session_state.next_graph_id = 1
 
@@ -104,7 +120,7 @@ def main():
     # ------------------------
     for graph_id in st.session_state.graph_ids:
         graph_label = f"Graph {st.session_state.graph_ids.index(graph_id) + 1}"
-        with st.expander(f"📈 {graph_label}", expanded=True):
+        with st.expander(f"{graph_label}", expanded=True):
             selected_names = st.multiselect(
                 f"Select assets for {graph_label}",
                 options=list(st.session_state.asset_names.values()),
@@ -115,12 +131,10 @@ def main():
                 if name in selected_names
             ]
 
-            # Remove graph button
-            if st.button(f"❌ Remove {graph_label}", key=f"remove_graph_btn_{graph_id}"):
+            if st.button(f" Remove {graph_label}", key=f"remove_graph_btn_{graph_id}"):
                 st.session_state.graph_ids.remove(graph_id)
                 st.rerun()
 
-            # Toggle group controls visibility
             if f"show_groups_{graph_id}" not in st.session_state:
                 st.session_state[f"show_groups_{graph_id}"] = True
 
@@ -129,13 +143,12 @@ def main():
             st.session_state[f"show_groups_{graph_id}"] = toggle
 
             if toggle:
-                # New group creation UI
-                st.markdown("### ➕ Create New Group from Selection")
+                st.markdown("### Create New Group from Selection")
                 new_group_name = st.text_input(
                     f"New group name ({graph_label})",
                     key=f"new_group_name_{graph_id}"
                 )
-                if st.button("✅ Create Group", key=f"create_group_btn_{graph_id}"):
+                if st.button("Create Group", key=f"create_group_btn_{graph_id}"):
                     if new_group_name:
                         if new_group_name in st.session_state.groups:
                             st.warning(f"Group '{new_group_name}' already exists.")
@@ -146,8 +159,7 @@ def main():
                     else:
                         st.warning("Please enter a group name.")
 
-                # Add to existing group
-                st.markdown("### 📂 Add Selected to Existing Group")
+                st.markdown("### Add Selected to Existing Group")
                 group_options = list(st.session_state.groups.keys())
                 if group_options:
                     group_to_add = st.selectbox(
@@ -157,37 +169,50 @@ def main():
                     )
 
                     if group_to_add != "(None)":
-                        if st.button(f"➕ Add to '{group_to_add}'", key=f"add_to_group_btn_{graph_id}"):
+                        if st.button(f" Add to '{group_to_add}'", key=f"add_to_group_btn_{graph_id}"):
                             for idx in selected_indices:
                                 if idx not in st.session_state.groups[group_to_add]:
                                     st.session_state.groups[group_to_add].append(idx)
                             save_state(st.session_state.asset_names, st.session_state.groups)
                             st.success(f"Assets added to group '{group_to_add}'.")
 
-            # Plotting
             if selected_indices:
                 fig = go.Figure()
                 for i in selected_indices:
                     fig.add_trace(go.Scatter(
                         y=df[i],
                         mode="lines",
-                        name=st.session_state.asset_names[i]
+                        name=st.session_state.asset_names[i],
+                        line=dict(width=2)
                     ))
+
+                fig.update_layout(
+                    template='plotly_dark',
+                    plot_bgcolor='#111111',
+                    paper_bgcolor='#111111',
+                    font=dict(color='white', size=12),
+                    xaxis=dict(
+                        showgrid=False,
+                        zeroline=False
+                    ),
+                    yaxis=dict(
+                        showgrid=True,
+                        gridcolor='#333',
+                        zeroline=False
+                    ),
+                    margin=dict(t=30, b=20, l=20, r=20),
+                    height=400
+                )
+
                 st.plotly_chart(fig, use_container_width=True, key=f"plot_{graph_id}")
             else:
                 st.info("Select assets to plot.")
 
-    # ------------------------
-    # Button: Add New Graph Panel
-    # ------------------------
-    if st.button("➕ Add Another Graph Panel"):
+    if st.button("Add Another Graph Panel"):
         st.session_state.graph_ids.append(st.session_state.next_graph_id)
         st.session_state.next_graph_id += 1
 
-    # ------------------------
-    # Group Preview/Plot
-    # ------------------------
-    st.markdown("## 📂 View a Saved Group")
+    st.markdown("### View a Saved Group")
     selected_group = st.selectbox("Choose a group", list(st.session_state.groups.keys()) or ["(No groups)"])
     if selected_group and selected_group != "(No groups)":
         fig = go.Figure()
@@ -197,6 +222,23 @@ def main():
                 mode="lines",
                 name=st.session_state.asset_names[idx]
             ))
+        fig.update_layout(
+            template='plotly_dark',
+            plot_bgcolor='#111111',
+            paper_bgcolor='#111111',
+            font=dict(color='white', size=12),
+            xaxis=dict(
+                showgrid=False,
+                zeroline=False
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#333',
+                zeroline=False
+            ),
+            margin=dict(t=30, b=20, l=20, r=20),
+            height=400
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 
